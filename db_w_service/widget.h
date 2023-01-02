@@ -26,28 +26,34 @@ public:
     QListWidget* mainWidget;
     QListWidgetItem *item;
 
-    QTimer* timer_midnight;
-    QTimer* timer_five_min;
-
     QUdpSocket* socket;
 
     QSqlDatabase db;
 
-    QString getCurrentWeek();
-    QString getCurrentDay();
-    void initNewWeek();
+    void insertQueryIntoBody(QString request, QString &body, int fields);
+
+    void test();
+
     void initFrame();
+
     void processRequest(QByteArray data);
-    void login(QByteArray data);
-    void authRequest(QByteArray data);
-    void logOut(QByteArray data);
-    //void activeApprove(QByteArray data);
+
+    void checkOutput(QByteArray data);
+    void statusOutput(QByteArray data);
+
+    void checkInsertChanges(QByteArray data);
+    void statusInsertChanges(QByteArray data);
+
+    //void checkOutput(QByteArray data);
+
+    void roleInsertCSV(QByteArray data);
+    void employInsertCSV(QByteArray data);
+
+    void insertSchedule(QByteArray data);
 
     //QByteArray parse(QByteArray &data, int index);
 public slots:
     void request();
-    void notification();
-    void force();
 private:
     Ui::Widget *ui;
 };
