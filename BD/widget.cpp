@@ -290,6 +290,23 @@ void Widget::creatingGenerateReportWindow(){
         itemGenerateReport = new QTableWidgetItem(arrGenerateReport[j]);
         tableGenerateReport->setHorizontalHeaderItem(j, itemGenerateReport);
     }
+    tableGenerateReport->horizontalHeader()->setStretchLastSection(true);
+    for (int i = 0; i < 3; i++ ) {
+        for(int j = 0; j < 6; j++){
+            QTableWidgetItem* itemGenerateReport1 = new QTableWidgetItem("a"+QString::number(i)+"b"+QString::number(j));
+            tableGenerateReport->setItem(i, j, itemGenerateReport1);
+        }
+    }
+
+    /*
+    for (int i = 0; i < 3; i++ ) {
+        for(int j = 0; j < 6; j++){
+            QTableWidgetItem* itemGenerateReport1 = new QTableWidgetItem();
+             qDebug()<<tableGenerateReport->takeItem(i,j)->text();
+        }
+    }
+    */
+
     nameInputGenerateReport = new QLabel();
     nameInputGenerateReport->setText("Для изменения введите id работника, количество отработанных часов за неделю и причину изменения через запятую");
     nameInputGenerateReport->setStyleSheet(QString("font-size: %1px").arg(18));
@@ -299,6 +316,7 @@ void Widget::creatingGenerateReportWindow(){
     connect(btnInputChange, SIGNAL(clicked()), this, SLOT(on_btnInputChangeGenerateReport_clicked()));
     btnSendReport = new QPushButton();
     btnSendReport->setText("Отправить отчёт в ГК");
+    connect(btnSendReport, SIGNAL(clicked()), this, SLOT(on_btnSendGenerateReport_clicked()));
     mainLayout->addWidget(btnBack, 0, 0, 1, 1);
     mainLayout->addWidget(nameGenerateReport, 1, 0, 1, 10, Qt::AlignCenter);
     mainLayout->addWidget(tableGenerateReport, 2, 0, 1, 10);
@@ -321,6 +339,30 @@ void Widget::on_btnInputChangeGenerateReport_clicked(){
         inputGenerateReport->clear();
     }
     else QMessageBox::information(this, "", "Проверьте ввёденные данные!");
+}
+
+void Widget::on_btnSendGenerateReport_clicked(){
+
+
+    QFile f1;
+          f1.setFileName("f1.csv");
+          f1.open(QIODevice::WriteOnly | QIODevice::Text);
+          QString strTable = "";
+          QString strTableElem="";
+          for (int i = 0; i < 3; i++ ) {
+              for(int j = 0; j < 6; j++){
+                   strTableElem = tableGenerateReport->takeItem(i,j)->text();
+                   strTable += strTableElem + ",";
+                   QTableWidgetItem* itemGenerateReport1 = new QTableWidgetItem(strTableElem);
+                   tableGenerateReport->setItem(i, j, itemGenerateReport1);
+              }
+              strTable.resize(strTable.size() - 1);
+
+              strTable += ";";
+          }
+          QTextStream stream( &f1 );
+          stream << strTable;
+                f1.close();
 }
 
 void Widget::on_btnCheckChangeStatusEmployee_clicked(){
@@ -346,6 +388,7 @@ void Widget::creatingCheckChangeStatusEmployeeWindow(){
         itemCheckChangeStatusEmployee = new QTableWidgetItem(arrGenerateReport[j]);
         tableCheckChangeStatusEmployee->setHorizontalHeaderItem(j, itemCheckChangeStatusEmployee);
     }
+    tableCheckChangeStatusEmployee->horizontalHeader()->setStretchLastSection(true);
     nameInputCheckChangeStatusEmployee = new QLabel();
     nameInputCheckChangeStatusEmployee->setText("Для добавления/изменения введите id работника, статус, дату начала, дату окончания, подтверждение(при наличии) через запятую");
     nameInputCheckChangeStatusEmployee->setStyleSheet(QString("font-size: %1px").arg(18));

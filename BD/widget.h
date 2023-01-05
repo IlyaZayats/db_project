@@ -79,6 +79,7 @@ private slots:
     void on_btnGenerateReport_clicked();
     void creatingGenerateReportWindow();
     void on_btnInputChangeGenerateReport_clicked();
+    void on_btnSendGenerateReport_clicked();
     void on_btnCheckChangeStatusEmployee_clicked();
     void creatingCheckChangeStatusEmployeeWindow();
     void on_btnInputChangeCheckChangeStatusEmployee_clicked();
