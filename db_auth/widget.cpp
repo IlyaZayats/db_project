@@ -64,6 +64,73 @@ void Widget::notification(){
             item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " There are no active sessions", mainWidget);
         }
         timer_five_min->start(1000*60*5);
+        //timer_five_min->start(1000);
+    }
+}
+
+void Widget::sickCheck(QString login, QString employ_id){
+    QSqlQuery q_weeks(db), q_sick(db), q_record(db);
+    q_weeks.prepare("SELECT id, start_day, end_day from Weeks");
+    q_weeks.exec();
+    q_sick.prepare("SELECT id, start_date, end_date, approved FROM Sick WHERE id=(SELECT max(id) FROM Sick WHERE employ_id="+employ_id+") AND approved=false;");
+    q_sick.exec();
+    q_sick.first();
+    if(q_sick.isValid()){
+        QString sick_id = q_sick.value(0).toString();
+        QString start_date_string = q_sick.value(1).toString();
+        QString end_date_string = q_sick.value(2).toString();
+        bool approved = q_sick.value(3).toBool();
+
+        QDate start_date = QDate::fromString(start_date_string, "yyyy-MM-dd");
+        QDate end_date = QDate::fromString(end_date_string, "yyyy-MM-dd");
+
+
+        QString today_s = QDate::currentDate().toString("yyyy-MM-dd");
+        QDate today = QDate::fromString(today_s, "yyyy-MM-dd");
+
+        QDate deadline = end_date.addDays(1);
+
+        if(today>deadline && !approved){
+            while(q_weeks.next()){
+                QString week_id = q_weeks.value(0).toString();
+                QString start_week_string = q_weeks.value(1).toString();
+                QString end_week_string = q_weeks.value(2).toString();
+
+                //qDebug() << week_id;
+
+                QDate start_week = QDate::fromString(start_week_string, "yyyy-MM-dd");
+                QDate end_week = QDate::fromString(end_week_string, "yyyy-MM-dd");
+
+                QDate temp_sick = start_date;
+                while(temp_sick<=end_date){
+                    QDate temp_week = start_week;
+                    while(temp_week<=end_week){
+                        if(temp_sick==temp_week){
+                            //item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: Debug: temp_sick=" + temp_sick.toString("yyyy-MM-dd") + " temp_week=" + temp_week.toString("yyyy-MM-dd") + " week_id=" + week_id, mainWidget);
+                            QString day = temp_sick.toString("dddd").toLower();
+                            q_record.prepare("SELECT id,"+day+" FROM Schedule WHERE week_id="+week_id+" AND employ_id="+employ_id+";");
+                            q_record.exec();
+                            q_record.first();
+                            QString schedule_id = q_record.value(0).toString();
+                            double schedule_day_h = q_record.value(1).toInt();
+                            q_record.prepare("SELECT hours FROM Record WHERE schedule_id="+schedule_id+";");
+                            q_record.exec();
+                            q_record.first();
+                            double sum = q_record.value(0).toDouble() - (double)schedule_day_h/60;
+                            q_record.prepare("UPDATE Record SET "+day+"=-"+QString::number(schedule_day_h)+", hours="+QString::number(sum)+" WHERE schedule_id="+schedule_id+";");
+                            q_record.exec();
+                            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: Updated record for" + login, mainWidget);
+                        }
+                        temp_week = temp_week.addDays(1);
+                    }
+                    temp_sick = temp_sick.addDays(1);
+                }
+            }
+            q_record.prepare("UPDATE Sick SET approved=true WHERE id="+sick_id+";");
+            q_record.exec();
+        }
+    } else {
+        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: sick record doesnt exist for " + login, mainWidget);
     }
 }
 
@@ -395,15 +462,28 @@ void Widget::initNewWeek(){
     }
 }
 
+//int roundTime(int time){
+//    if(time>60){
+//        time=-60;
+//    }
+//    int hours = time/60;
+//    int minutes = time%60;
+//    if(minutes>30){
+//        minutes = 60;
+//    } else if (minutes>=-30){
+//        minutes = 0;
+//    }
+//    return (hours*60)+minutes;
+//}
+
 int roundTime(int time){
-    int hours = time/60;
-    int minutes = time%60;
-    if(minutes>=30){
-        minutes = 30;
-    } else {
-        minutes = 0;
+    if(time>60){
+        time-=60;
     }
-    return (hours*60)+minutes;
+    if(time<=30 && time>=-30){
+        time=0;
+    }
+    return time;
 }
 
 void Widget::force(){
@@ -427,69 +507,194 @@ void Widget::force(){
             q.first();
             if(q.isValid()){
                 QString schedule_id = q.value(0).toString();
-                qDebug() << " s_i "<<schedule_id;
+                //qDebug() << " s_i "<<schedule_id;
 
                 if(active){
-                    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Force log out for " + login, mainWidget);
+                    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: Force log out for " + login, mainWidget);
                     logOut(body.toUtf8());
                     q.prepare("SELECT "+ day + " from Schedule WHERE id=" + schedule_id + ";");
                     q.exec();
                     q.first();
                     int h_s = q.value(0).toInt();
-                    qDebug() << " q "<<q.lastQuery();
-                    qDebug() << " H_S "<<h_s;
-                    q.prepare("SELECT "+ day + " from Record WHERE schedule_id=" + schedule_id + ";");
+                    //qDebug() << " q "<<q.lastQuery();
+                    //qDebug() << " H_S "<<h_s;
+                    q.prepare("SELECT "+ day + ", hours from Record WHERE schedule_id=" + schedule_id + ";");
                     q.exec();
                     q.first();
                     int h_r = q.value(0).toInt();
-                    qDebug() << " q "<<q.lastQuery();
-                    qDebug() << " H_R " <<h_r;
+                    double sum = q.value(1).toDouble();
+                    //qDebug() << " q "<<q.lastQuery();
+                    //qDebug() << " H_R " <<h_r;
+                    int time;
                     if(h_r-h_s>0){
-                        q.prepare("UPDATE Record SET "+ day +"="+QString::number(h_s)+" WHERE schedule_id=" + schedule_id + ";");
-                        q.exec();
+                        time = h_s;
                     } else {
-                        int time = roundTime(h_r-h_s);
-                        qDebug()<<" TIME " <<time;
-                        q.prepare("UPDATE Record SET "+ day +"="+QString::number(time)+" WHERE schedule_id=" + schedule_id + ";");
-                        q.exec();
+                        time = roundTime(h_r-h_s);
                     }
+                    //qDebug()<<" TIME " <<time;
+                    sum+=(double)time/60;
+                    q.prepare("UPDATE Record SET "+ day +"="+QString::number(time)+", hours = "+QString::number(sum)+" WHERE schedule_id=" + schedule_id + ";");
+                    q.exec();
                 } else {
                     q.prepare("SELECT status FROM Employ WHERE id="+employ_id+";");
                     q.exec();
                     q.first();
                     int status = q.value(0).toInt();
+                    if(status == 2){
+                        //QSqlQuery q_weeks(db), q_2(db);
+
+                        q.prepare("SELECT end_date FROM Sick WHERE id=(SELECT max(id) FROM Sick WHERE employ_id="+employ_id+") AND approved=false;");
+                        q.exec();
+                        q.first();
+                        if(q.isValid()){
+
+                            //QString sick_id = q.value(0).toString();
+                           //QString start_date_string = q.value(1).toString();
+
+                            QString end_date_string = q.value(0).toString();
+
+                            //QDate start_date = QDate::fromString(start_date_string, "yyyy-MM-dd");
+
+                            QDate end_date = QDate::fromString(end_date_string, "yyyy-MM-dd");
+
+                            //QDate deadline = end_date.addDays(6);
+
+                            QString today_s = QDate::currentDate().toString("yyyy-MM-dd");
+                            QDate today = QDate::fromString(today_s, "yyyy-MM-dd");
+                            if(today>end_date){
+                                q.prepare("UPDATE Employ SET status=1 WHERE id="+employ_id+";");
+                                q.exec();
+                                item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: User " + login + " must be on work today from sick", mainWidget);
+                            } else {
+                                item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: User " + login + " on sick", mainWidget);
+                            }
+                        } else {
+                            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: Status error for " + login + " on sick", mainWidget);
+                        }
+                        //q_1.prepare("SELECT id, start_date, end_date from Seek WHERE ")
+                    }
+                    if(status == 3){
+                        q.prepare("SELECT end_date FROM Vacation WHERE id=(SELECT max(id) FROM Vacation WHERE employ_id="+employ_id+");");
+                        q.exec();
+                        q.first();
+                        //QString start_date_s = q.value(0).toString();
+                        if(q.isValid()){
+                            QString end_date_s = q.value(0).toString();
+                            QString today_s = QDateTime::currentDateTime().toString("yyyy-MM-dd");
+                            QDate today_d = QDate::fromString(today_s, "yyyy-MM-dd");
+                            //QDate start_date_d = QDate::fromString(start_date_s, "yyyy-MM-dd");
+                            QDate end_date_d = QDate::fromString(end_date_s, "yyyy-MM-dd");
+                            if(today_d>end_date_d){
+                                item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: Updated status for " + login + " on vacation", mainWidget);
+                                q.prepare("UPDATE Employ WHERE id="+employ_id+";");
+                                q.exec();
+                            } else {
+                                item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: User " + login + " on vacation", mainWidget);
+                            }
+                        } else {
+                            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: Status error for " + login + " on vacation", mainWidget);
+                        }
+                    }
                     if(status == 1){
-                        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Calculating for " + login, mainWidget);
+                        sickCheck(login, employ_id);
+                        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: Calculating for " + login, mainWidget);
                         //
-                        q.prepare("SELECT Schedule."+ day + ", Record."+day+" from Schedule JOIN Record ON Record.schedule_id=" + schedule_id + ";");
+                        q.prepare("SELECT Schedule."+ day + ", Record."+day+", Record.hours from Schedule JOIN Record ON Record.schedule_id=" + schedule_id + ";");
                         //
                         q.exec();
                         q.first();
                         int h_s = q.value(0).toInt();
-                        qDebug() << " q "<<q.lastQuery();
-                        qDebug() << " H_S "<<h_s;
-                        int h_r = q.value(1).toInt();
                         //qDebug() << " q "<<q.lastQuery();
-                        qDebug() << " H_R " <<h_r;
+                        //qDebug() << " H_S "<<h_s;
+                        int h_r = q.value(1).toInt();
+                        double sum = q.value(2).toDouble();
+                        //qDebug() << " q "<<q.lastQuery();
+                        //qDebug() << " H_R " <<h_r;
                         int time = roundTime(h_r-h_s);
-                        qDebug()<<" TIME " <<time;
-                        q.prepare("UPDATE Record SET "+day+"="+QString::number(time)+" WHERE schedule_id="+schedule_id+";");
+                        sum+=(double)time/60;
+                        //qDebug()<<" TIME " <<time;
+                        q.prepare("UPDATE Record SET "+day+"="+QString::number(time)+", hours="+QString::number(sum)+" WHERE schedule_id="+schedule_id+";");
                         q.exec();
                     }
 
                 }
             } else {
-                item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " No Schedule for " + login, mainWidget);
+                item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: No Schedule for " + login, mainWidget);
             }
 
         } while(query.next());
     } else {
-        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " There are 0 unapproved sessions ", mainWidget);
+        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: There are 0 unapproved sessions ", mainWidget);
     }
     if(day=="sunday"){
         initNewWeek();
     }
 }
+
+
+
+//
+//q.exec();
+//q.first();
+//if(q.isValid()){
+//    QString s_id = q.value(0).toString();
+//    QString start_date_s = q.value(1).toString();
+//    QString end_date_s = q.value(2).toString();
+//    //bool approved = q.value(3).toBool();
+//    QString today_s = QDateTime::currentDateTime().toString("yyyy-MM-dd");
+//    QDate today_d = QDate::fromString(today_s, "yyyy-MM-dd");
+//    QDate start_date_d = QDate::fromString(start_date_s, "yyyy-MM-dd");
+//    QDate end_date_d = QDate::fromString(end_date_s, "yyyy-MM-dd");
+//    if(today_d>end_date_d){
+//        QDate deadline = end_date_d.addDays(6);
+//        if(today_d>deadline/* && !approved*/){
+//            QDate temp = start_date_d;
+//            while(temp<=end_date_d){
+//                QString day = temp.toString("dddd").toLower();
+//                QSqlQuery q_1(db), q_2(db);
+//                q_1.prepare("SELECT id, start_day, end_day from WEEKS");
+//                q_1.exec();
+//                while(q_1.next()){
+//                    QString week_id = q_1.value(0).toString();
+//                    QString s_d_s = q_1.value(1).toString();
+//                    QDate s_d_d = QDate::fromString(s_d_s, "yyyy-MM-dd");
+//                    QString e_d_s = q_1.value(2).toString();
+//                    QDate e_d_d = QDate::fromString(e_d_s, "yyyy-MM-dd");
+//                    qDebug() << " S_D_D " << s_d_d;
+//                    qDebug() << " E_D_D " << e_d_d;
+//                    qDebug() << " TEMP " << temp;
+//                    if(temp<=e_d_d && temp>=s_d_d){
+//                        q_2.prepare("SELECT id, "+day+" from Schedule WHERE week_id="+week_id+", AND employ_id="+employ_id+";");
+//                        q_2.exec();
+//                        q_2.first();
+//                        QString schedule_id = q_2.value(0).toString();
+//                        int schedule_day_time = q_2.value(1).toInt();
+//                        //double schedule_hours = q_2.value(2).toDouble();
+//                        q_2.prepare("SELECT hours from Record WHERE schedule_id="+schedule_id+";");
+//                        q_2.exec();
+//                        q_2.first();
+//                        double record_hours = q_2.value(0).toDouble();
+//                        record_hours-=schedule_day_time;
+//                        q_2.prepare("UPDATE Record SET "+day+"="+QString::number(-schedule_day_time)+", hours="+QString::number(record_hours)+" WHERE schedule_id="+schedule_id+";");
+//                        q_2.exec();
+//                        q_2.prepare("UPDATE Sick SET approved=true WHERE id="+s_id+";");
+//                        q_2.exec();
+//                        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: Updated hours with Sick for " + login, mainWidget);
+//                    }
+//                }
+//                temp = temp.addDays(1);
+//            }
+//        } else {
+//            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: Deadline is not today for " + login, mainWidget);
+//        }
+//    } else {
+//        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: User " + login + " on sick", mainWidget);
+//    }
+//} else {
+//
+//}
+
+
 
 void Widget::processRequest(QByteArray data){
     if(db.isOpen()){

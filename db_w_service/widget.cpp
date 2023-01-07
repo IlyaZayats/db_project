@@ -35,7 +35,7 @@ void Widget::initFrame(){
     mainWidget = new QListWidget();
     mainWidget->setFlow(QListView::TopToBottom);
     glw->addWidget(mainWidget);
-    db = QSqlDatabase::addDatabase("QPSQL", "db_auth");
+    db = QSqlDatabase::addDatabase("QPSQL", "db_w_service");
     db.setHostName("localhost");
     db.setDatabaseName("postgres");
     db.setUserName("postgres");
@@ -75,7 +75,7 @@ QByteArray parse(QByteArray &data, int index){
 //Загрузка role.csv: output->202/status1|...|statusN|port
 void Widget::roleInsertCSV(QByteArray data){
     QString port = parse(data, data.indexOf("?"));
-    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + QString::fromUtf8(data), mainWidget);
+    //item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + QString::fromUtf8(data), mainWidget);
     int index = data.indexOf(";");
     QString body = "202/";
     if(!data.isEmpty()){
@@ -94,17 +94,17 @@ void Widget::roleInsertCSV(QByteArray data){
                 query.exec();
                 query.first();
                 if(query.isValid()){
-                    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " " +id +"," + rate + "," + hours + "," + title + " updated!", mainWidget);
+                    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " roleInsertCSV: " +id +"," + rate + "," + hours + "," + title + " updated!", mainWidget);
                     query.prepare("UPDATE Role SET rate="+rate+",hours='"+hours+"',title='"+title+"',updated_at='"+QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.ms")+"' WHERE id="+id+";");
                     body+="2|";
                 } else {
-                    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " " +id +"," + rate + "," + hours + "," + title + " inserted!", mainWidget);
+                    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " roleInsertCSV: " +id +"," + rate + "," + hours + "," + title + " inserted!", mainWidget);
                     query.prepare("INSERT INTO Role (id,rate,hours,title) VALUES ("+id+","+rate+","+hours+",'"+title+"');");
                     body+="1|";
                 }
                 query.exec();
             } else {
-                item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Validation error at roleInsertCSV", mainWidget);
+                item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " roleInsertCSV: Validation error ", mainWidget);
                 body+="0|valid";
             }
             index = data.indexOf(";");
@@ -118,7 +118,7 @@ void Widget::roleInsertCSV(QByteArray data){
 //Дописать валидацию Загрузка employ.csv: output->203/status1|...|statusN|port
 void Widget::employInsertCSV(QByteArray data){
     QString port = parse(data, data.indexOf("?"));
-    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + QString::fromUtf8(data), mainWidget);
+    //item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + QString::fromUtf8(data), mainWidget);
     int index = data.indexOf(";");
     QString body = "203/";
     if(!data.isEmpty()){
@@ -269,16 +269,16 @@ void Widget::checkOutput(QByteArray data){
     QString port = parse(data,data.indexOf("|"));
     QString week_id = data;
     QSqlQuery q(db);
-    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Check output request " + port, mainWidget);
+    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " checkOutput: request " + port, mainWidget);
     QString body = "200/"+port+"?";
     q.prepare("SELECT * FROM Weeks WHERE id="+week_id+";");
     q.exec();
     q.first();
-    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " q: " + q.lastQuery(), mainWidget);
+    //item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " q: " + q.lastQuery(), mainWidget);
     if(q.isValid()){
         insertQueryIntoBody("SELECT Employ.last_name, Employ.first_name, Employ.middle_name, Employ.role_id, Schedule.id, Schedule.employ_id, Schedule.monday, Schedule.tuesday, Schedule.wednesday, Schedule.thursday, Schedule.friday, Schedule.saturday, Schedule.sunday, Schedule.hours, Record.id, Record.monday, Record.tuesday, Record.wednesday, Record.thursday, Record.friday, Record.saturday, Record.sunday, Record.hours FROM Schedule JOIN Employ ON Employ.id=Schedule.employ_id JOIN Record ON Record.schedule_id=Schedule.id WHERE Schedule.week_id = "+week_id+";", body, 23);
     } else {
-        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Week id error at checkOutput " + port, mainWidget);
+        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " checkOutput: Week id error " + port, mainWidget);
         body += "error";
     }
     socket->writeDatagram(body.toUtf8(), QHostAddress::LocalHost, 25564);
@@ -286,11 +286,11 @@ void Widget::checkOutput(QByteArray data){
 
 void Widget::statusOutput(QByteArray data){
     QString port = data;
-    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Status output request " + port, mainWidget);
+    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " statusOutput: request " + port, mainWidget);
     QString body = "201/"+port+"?";
-    insertQueryIntoBody("SELECT Fired.id, Fired.employ_id, Fired.fired_at, Employ.second_name, Employ.first_name, Employ.middle_name, Employ.role_id FROM Fired JOIN Employ ON Employ.id=Fired.employ_id;", body, 7);
-    insertQueryIntoBody("SELECT Vacation.id, Vacation.employ_id, Vacation.start_date, Vacation.end_date, Vacation.approved, Employ.second_name, Employ.first_name, Employ.middle_name, Employ.role_id FROM Vacation JOIN Employ ON Employ.id=Vacation.employ_id;", body, 9);
-    insertQueryIntoBody("SELECT Sick.id, Sick.employ_id, Sick.start_date, Sick.end_date, Sick.approved, Employ.second_name, Employ.first_name, Employ.middle_name, Employ.role_id FROM Sick JOIN Employ ON Employ.id=Sick.employ_id;", body, 9);
+    insertQueryIntoBody("SELECT Fired.id, Fired.employ_id, Fired.fired_at, Employ.last_name, Employ.first_name, Employ.middle_name, Employ.role_id FROM Fired JOIN Employ ON Employ.id=Fired.employ_id;", body, 7);
+    insertQueryIntoBody("SELECT Vacation.id, Vacation.employ_id, Vacation.start_date, Vacation.end_date, Employ.last_name, Employ.first_name, Employ.middle_name, Employ.role_id FROM Vacation JOIN Employ ON Employ.id=Vacation.employ_id;", body, 8);
+    insertQueryIntoBody("SELECT Sick.id, Sick.employ_id, Sick.start_date, Sick.end_date, Sick.approved, Employ.last_name, Employ.first_name, Employ.middle_name, Employ.role_id FROM Sick JOIN Employ ON Employ.id=Sick.employ_id;", body, 9);
     socket->writeDatagram(body.toUtf8(), QHostAddress::LocalHost, 25564);
 }
 
@@ -300,11 +300,12 @@ void Widget::statusOutput(QByteArray data){
 
 void Widget::statusInsertChanges(QByteArray data){
     QString port = parse(data,data.indexOf("?"));
-    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " statusInsertChanges request " + port, mainWidget);
+    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " statusInsertChanges: request " + port, mainWidget);
     int type = parse(data,data.indexOf("|")).toInt();
     QString employ_id = parse(data, data.indexOf(","));
     QString body = "205/"+port+"|";
     QSqlQuery query(db);
+    QSqlQuery q(db);
     if (type == 0){
         //fired
         QString fired_at = data;
@@ -314,7 +315,7 @@ void Widget::statusInsertChanges(QByteArray data){
         query.prepare("UPDATE Employ SET status=0 WHERE id="+employ_id+";");
         query.exec();
         body+="1";
-        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Fired employ with id=" + employ_id, mainWidget);
+        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " statusInsertChanges: Fired employ with id=" + employ_id, mainWidget);
     } else {
         //vac or sick
         QString id = parse(data, data.indexOf(","));
@@ -331,16 +332,30 @@ void Widget::statusInsertChanges(QByteArray data){
         query.prepare("SELECT * FROM "+table+" WHERE id=" + id + ";");
         query.first();
         if(query.isValid()){
-            query.prepare("UPDATE "+table+" SET start_date='"+start_date+"',end_date='"+end_date+"',approved="+approved+" WHERE id="+id+";");
+            if(type==2){
+                query.prepare("UPDATE "+table+" SET start_date='"+start_date+"',end_date='"+end_date+"',approved="+approved+" WHERE id="+id+";");
+                q.prepare("UPDATE Employ SET status=2 WHERE id="+employ_id+";");
+            } else {
+                query.prepare("UPDATE "+table+" SET start_date='"+start_date+"',end_date='"+end_date+"' WHERE id="+id+";");
+                q.prepare("UPDATE Employ SET status=3 WHERE id="+employ_id+";");
+            }
             query.exec();
+            q.exec();
             body+="2";
-            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Updated "+table+" id=" + id, mainWidget);
+            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + "statusInsertChanges: Updated "+table+" id=" + id, mainWidget);
         } else {
-            query.prepare("INSERT INTO "+table+" (employ_id, start_date, end_date, approved) VALUES ("+employ_id+",'"+start_date+"','"+end_date+"',"+approved+");");
+            if(type == 2){
+                query.prepare("INSERT INTO "+table+" (employ_id, start_date, end_date, approved) VALUES ("+employ_id+",'"+start_date+"','"+end_date+"',"+approved+");");
+                q.prepare("UPDATE Employ SET status=2 WHERE id="+employ_id+";");
+            } else {
+                query.prepare("INSERT INTO "+table+" (employ_id, start_date, end_date) VALUES ("+employ_id+",'"+start_date+"','"+end_date+"');");
+                q.prepare("UPDATE Employ SET status=3 WHERE id="+employ_id+";");
+            }
             query.exec();
-            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " statusInsertChanges: " + query.lastQuery(), mainWidget);
+            q.exec();
+            //item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " statusInsertChanges: " + query.lastQuery(), mainWidget);
             body+="3";
-            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Inserted into "+table+" id=" + QString::number(query.lastInsertId().toInt()), mainWidget);
+            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + "statusInsertChanges: Inserted into "+table+" id=" + QString::number(query.lastInsertId().toInt()), mainWidget);
         }
     }
     socket->writeDatagram(body.toUtf8(), QHostAddress::LocalHost, 25564);
@@ -368,7 +383,7 @@ void Widget::checkInsertChanges(QByteArray data){
     QString s_h = parse(data, data.indexOf(","));
     QString r_h = data;
     if(error || !v_int.validate(employ_id, pos) || !v_varchar.validate(last_name,pos) || !v_varchar.validate(first_name,pos) || !v_varchar.validate(middle_name, pos) || !v_int.validate(role_id, pos) || !v_int.validate(s_h, pos) || !v_double.validate(r_h, pos)){
-        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Validation error at checkInsertChanges" , mainWidget);
+        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " checkInsertChanges: Validation error" , mainWidget);
         body+="-1";
     } else {
         QSqlQuery q(db);
@@ -382,30 +397,36 @@ void Widget::checkInsertChanges(QByteArray data){
             if(q.isValid()){
                 q.prepare("UPDATE Schedule SET monday="+days[0]+", tuesday="+days[1]+", wednesday="+days[2]+", thursday="+days[3]+", friday="+days[4]+", saturday="+days[5]+", sunday="+days[6]+", hours="+s_h+" WHERE week_id=(SELECT max(id) from Weeks) AND employ_id="+employ_id+";");
                 q.exec();
-                item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Schedule updated for employ_id=" + employ_id , mainWidget);
+                //item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " checkInsertChanges: Schedule updated for employ_id=" + employ_id , mainWidget);
                 q.prepare("SELECT id from Schedule WHERE employ_id="+employ_id+" AND week_id=(SELECT max(id) from Weeks);");
                 q.exec();
                 q.first();
                 QString schedule_id = q.value(0).toString();
                 q.prepare("UPDATE Record SET monday="+days[7]+", tuesday="+days[8]+", wednesday="+days[9]+", thursday="+days[10]+", friday="+days[11]+", saturday="+days[12]+", sunday="+days[13]+", hours="+r_h+" WHERE schedule_id="+schedule_id+";");
                 q.exec();
-                item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Schedule and Record updated for employ_id=" + employ_id , mainWidget);
+                q.prepare("UPDATE Employ SET last_name='"+last_name+"', first_name='"+first_name+"', middle_name='"+middle_name+"' WHERE id="+employ_id+";");
+                q.exec();
+                item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " checkInsertChanges: Schedule, Record and full name updated for employ_id=" + employ_id , mainWidget);
                 body+="2|";
             } else {
                 q.prepare("INSERT INTO Schedule (monday,tuesday,wednesday,thursday,friday,saturday,sunday,hours,week_id,employ_id) VALUES ("+days[0]+","+days[1]+","+days[2]+","+days[3]+","+days[4]+","+days[5]+","+days[6]+","+s_h+",(SELECT max(id) FROM Weeks),"+employ_id+");");
                 q.exec();
                 QString schedule_id = q.lastInsertId().toString();
                 q.prepare("INSERT INTO Record (monday,tuesday,wednesday,thursday,friday,saturday,sunday,hours,schedule_id) VALUES ("+days[7]+","+days[8]+","+days[9]+","+days[10]+","+days[11]+","+days[12]+","+days[13]+","+r_h+","+schedule_id+");");
-                item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Schedule and Record inserted for employ_id=" + employ_id , mainWidget);
+                item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + "checkInsertChanges: Schedule and Record inserted for employ_id=" + employ_id , mainWidget);
                 body+="1|";
             }
         } else {
-            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Worker with id="+employ_id+" is fired or doenst exist" , mainWidget);
+            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " checkInsertChanges: Worker with id="+employ_id+" is fired or doenst exist" , mainWidget);
             body+="-2|";
         }
     }
     socket->writeDatagram((body+port).toUtf8(), QHostAddress::LocalHost, 25564);
-    checkOutput(port.toUtf8());
+    QSqlQuery q(db);
+    q.prepare("SELECT max(id) from weeks;");
+    q.exec();
+    q.first();
+    checkOutput((port+"|"+q.value(0).toString()).toUtf8());
 
 //    QString role_hours = parse(data, data.indexOf(","));
 //    QString record_hours = data;
@@ -436,7 +457,7 @@ void Widget::insertSchedule(QByteArray data){
         }
         QString hours = values;
         if(error || !v_int.validate(employ_id, pos) /*|| !v_int.validate(week_id, pos)*/ || !v_int.validate(hours, pos)){
-            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Validation error at insertSchedule" , mainWidget);
+            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " insertSchedule: Validation error" , mainWidget);
             body+="-1|";
         } else {
             QSqlQuery q(db);
@@ -451,7 +472,7 @@ void Widget::insertSchedule(QByteArray data){
                     QString updated_at = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.ms");
                     q.prepare("UPDATE Schedule SET monday="+days[0]+", tuesday="+days[1]+", wednesday="+days[2]+", thursday="+days[3]+", friday="+days[4]+", saturday="+days[5]+", sunday="+days[6]+", hours="+hours+", updated_at='"+updated_at+"' WHERE week_id=(SELECT max(id) from Weeks) AND employ_id="+employ_id+";");
                     q.exec();
-                    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Schedule updated for employ_id=" + employ_id , mainWidget);
+                    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " insertSchedule: Schedule updated for employ_id=" + employ_id , mainWidget);
                     body+="2|";
                 } else {
                     q.prepare("INSERT INTO Schedule (monday,tuesday,wednesday,thursday,friday,saturday,sunday,hours,week_id,employ_id) VALUES ("+days[0]+","+days[1]+","+days[2]+","+days[3]+","+days[4]+","+days[5]+","+days[6]+","+hours+",(SELECT max(id) FROM Weeks),"+employ_id+");");
@@ -459,11 +480,11 @@ void Widget::insertSchedule(QByteArray data){
                     QString schedule_id = q.lastInsertId().toString();
                     q.prepare("INSERT INTO Record (schedule_id) VALUES ("+schedule_id+");");
                     q.exec();
-                    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Schedule and Record inserted for employ_id=" + employ_id , mainWidget);
+                    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " insertSchedule: Schedule and Record inserted for employ_id=" + employ_id , mainWidget);
                     body+="1|";
                 }
             } else {
-                item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Worker with id="+employ_id+" is fired or doenst exist" , mainWidget);
+                item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " insertSchedule: Worker with id="+employ_id+" is fired or doenst exist" , mainWidget);
                 body+="-2|";
             }
         }

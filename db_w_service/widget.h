@@ -11,6 +11,7 @@
 #include <QNetworkDatagram>
 #include <QRandomGenerator>
 #include <QChar>
+#include <QDate>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class Widget; }

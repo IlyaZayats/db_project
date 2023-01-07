@@ -11,6 +11,7 @@
 #include <QNetworkDatagram>
 #include <QRandomGenerator>
 #include <QChar>
+#include <QDate>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class Widget; }
@@ -41,6 +42,7 @@ public:
     void login(QByteArray data);
     void authRequest(QByteArray data);
     void logOut(QByteArray data);
+    void sickCheck(QString login, QString employ_id);
     //void activeApprove(QByteArray data);
 
     //QByteArray parse(QByteArray &data, int index);
