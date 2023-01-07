@@ -112,11 +112,11 @@ void Widget::sickCheck(QString login, QString employ_id){
                             q_record.exec();
                             q_record.first();
                             QString schedule_id = q_record.value(0).toString();
-                            double schedule_day_h = q_record.value(1).toInt();
+                            int schedule_day_h = q_record.value(1).toInt();
                             q_record.prepare("SELECT hours FROM Record WHERE schedule_id="+schedule_id+";");
                             q_record.exec();
                             q_record.first();
-                            double sum = q_record.value(0).toDouble() - (double)schedule_day_h/60;
+                            int sum = q_record.value(0).toInt() - (int)schedule_day_h;
                             q_record.prepare("UPDATE Record SET "+day+"=-"+QString::number(schedule_day_h)+", hours="+QString::number(sum)+" WHERE schedule_id="+schedule_id+";");
                             q_record.exec();
                             item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: Updated record for" + login, mainWidget);
@@ -522,7 +522,7 @@ void Widget::force(){
                     q.exec();
                     q.first();
                     int h_r = q.value(0).toInt();
-                    double sum = q.value(1).toDouble();
+                    int sum = q.value(1).toInt();
                     //qDebug() << " q "<<q.lastQuery();
                     //qDebug() << " H_R " <<h_r;
                     int time;
@@ -532,7 +532,7 @@ void Widget::force(){
                         time = roundTime(h_r-h_s);
                     }
                     //qDebug()<<" TIME " <<time;
-                    sum+=(double)time/60;
+                    sum+=time;
                     q.prepare("UPDATE Record SET "+ day +"="+QString::number(time)+", hours = "+QString::number(sum)+" WHERE schedule_id=" + schedule_id + ";");
                     q.exec();
                 } else {
@@ -607,11 +607,11 @@ void Widget::force(){
                         //qDebug() << " q "<<q.lastQuery();
                         //qDebug() << " H_S "<<h_s;
                         int h_r = q.value(1).toInt();
-                        double sum = q.value(2).toDouble();
+                        int sum = q.value(2).toInt();
                         //qDebug() << " q "<<q.lastQuery();
                         //qDebug() << " H_R " <<h_r;
                         int time = roundTime(h_r-h_s);
-                        sum+=(double)time/60;
+                        sum+=(int)time;
                         //qDebug()<<" TIME " <<time;
                         q.prepare("UPDATE Record SET "+day+"="+QString::number(time)+", hours="+QString::number(sum)+" WHERE schedule_id="+schedule_id+";");
                         q.exec();
