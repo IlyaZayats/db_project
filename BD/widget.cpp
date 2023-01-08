@@ -428,6 +428,7 @@ void Widget::creatingGenerateReportWindow(QString str){
     tableGenerateReport->horizontalHeader()->setStretchLastSection(true);
     str.remove("200/1|");
     str.replace("*", ";");
+    str.remove("?1|");
     qDebug() << "Строчка: " <<str;
     QString strVr="";
     int rowNumber = 0;
@@ -437,7 +438,7 @@ void Widget::creatingGenerateReportWindow(QString str){
             colNumber = 0;
         }
         if(QString(str[i])==";"){
-
+            strVr = QString::number(strVr.toDouble()/60);
             QTableWidgetItem* itemGenerateReport1 = new QTableWidgetItem(strVr);
             tableGenerateReport->setItem(rowNumber, colNumber, itemGenerateReport1);
             rowNumber++;
@@ -448,6 +449,9 @@ void Widget::creatingGenerateReportWindow(QString str){
             strVr+=str[i];
         }
         else if(QString(str[i])==","){
+            if(colNumber>=6 && colNumber<=22 || colNumber==14){
+                strVr = QString::number(strVr.toDouble()/60);
+            }
             QTableWidgetItem* itemGenerateReport1 = new QTableWidgetItem(strVr);
             tableGenerateReport->setItem(rowNumber, colNumber, itemGenerateReport1);
             colNumber++;
@@ -465,7 +469,7 @@ void Widget::creatingGenerateReportWindow(QString str){
     */
 
     nameInputGenerateReport = new QLabel();
-    nameInputGenerateReport->setText("Для изменения введите id работника, количество отработанных часов за неделю и причину изменения через запятую");
+    nameInputGenerateReport->setText("Для изменения введите id работника");
     nameInputGenerateReport->setStyleSheet(QString("font-size: %1px").arg(18));
     inputGenerateReport = new QLineEdit();
     btnInputChange = new QPushButton();
@@ -536,7 +540,7 @@ void Widget::creatingCheckChangeStatusEmployeeWindow(){
     nameTableFired->setText("Статус увольнений");
     nameTableFired->setStyleSheet(QString("font-size: %1px").arg(25));
     nameInputCheckChangeStatusEmployee = new QLabel();
-    nameInputCheckChangeStatusEmployee->setText("Для добавления/изменения введите id работника, статус, дату начала, дату окончания, подтверждение(при наличии) через запятую");
+    nameInputCheckChangeStatusEmployee->setText("Для добавления/изменения введите id работника");
     nameInputCheckChangeStatusEmployee->setStyleSheet(QString("font-size: %1px").arg(18));
     inputCheckChangeStatusEmployee = new QLineEdit();
     btnSendChange = new QPushButton();
@@ -544,7 +548,7 @@ void Widget::creatingCheckChangeStatusEmployeeWindow(){
     connect(btnSendChange, SIGNAL(clicked()), this, SLOT(on_btnInputChangeCheckChangeStatusEmployee_clicked()));
 
 
-    tableSick = new QTableWidget(3,4);
+    tableSick = new QTableWidget(2,4);
     QStringList listSick;
     listSick << "id работника" << "Дата начала больничного" << "Дата окончания больничного" << "Подтверждение";
     QTableWidgetItem* itemSick;
@@ -553,10 +557,22 @@ void Widget::creatingCheckChangeStatusEmployeeWindow(){
         tableSick->setHorizontalHeaderItem(j, itemSick);
         itemSick->setFlags(Qt::ItemIsEditable);
     }
+    QStringList sick1, sick2;
+    sick1 << "4" << "2023-01-02" << "2023-02-02" << "true";
+    sick2 << "5" << "2023-02-01" << "2023-03-01" << "true";
+    for(int j=0; j<4; j++){
+        itemSick = new QTableWidgetItem(sick1[j]);
+        tableSick->setItem(0, j, itemSick);
+    }
+    for(int j=0; j<4; j++){
+        itemSick = new QTableWidgetItem(sick2[j]);
+        tableSick->setItem(1, j, itemSick);
+    }
+
     tableSick->horizontalHeader()->setStretchLastSection(true);
 
 
-    tableVocation = new QTableWidget(3,4);
+    tableVocation = new QTableWidget(2,4);
     QStringList listVocation;
     listVocation << "id работника" << "Дата начала отпуска" << "Дата окончания отпуска" << "Подтверждение";
     QTableWidgetItem* itemVocation;
@@ -565,10 +581,22 @@ void Widget::creatingCheckChangeStatusEmployeeWindow(){
         tableVocation->setHorizontalHeaderItem(j, itemVocation);
         itemVocation->setFlags(Qt::ItemIsEditable);
     }
+    QStringList vocation1, vocation2;
+    vocation1 << "2" << "2023-02-01" << "2023-03-01" << "true";
+    vocation2 << "3" << "2023-03-01" << "2023-03-18" << "true";
+    for(int j=0; j<4; j++){
+        itemVocation = new QTableWidgetItem(vocation1[j]);
+        tableVocation->setItem(0, j, itemVocation);
+    }
+    for(int j=0; j<4; j++){
+        itemVocation = new QTableWidgetItem(vocation2[j]);
+        tableVocation->setItem(1, j, itemVocation);
+    }
+
     tableVocation->horizontalHeader()->setStretchLastSection(true);
 
 
-    tableFired = new QTableWidget(3,2);
+    tableFired = new QTableWidget(1,2);
     QStringList listFired;
     listFired << "id работника" << "Дата увольнения";
     QTableWidgetItem* itemFired;
@@ -577,6 +605,13 @@ void Widget::creatingCheckChangeStatusEmployeeWindow(){
         tableFired->setHorizontalHeaderItem(j, itemFired);
         itemFired->setFlags(Qt::ItemIsEditable);
     }
+    QStringList fired1;
+    fired1 << "4" << "2023-04-11";
+    for(int j=0; j<2; j++){
+        itemFired = new QTableWidgetItem(fired1[j]);
+        tableFired->setItem(0, j, itemFired);
+    }
+
     tableFired->horizontalHeader()->setStretchLastSection(true);
 
 
@@ -593,18 +628,7 @@ void Widget::creatingCheckChangeStatusEmployeeWindow(){
 }
 
 void Widget::on_btnInputChangeCheckChangeStatusEmployee_clicked(){
-    inpChangesCheckChangeStatusEmployee = inputCheckChangeStatusEmployee->text();
-    QString sendChanges = "";
-    QStringList changes;
-    changes = inpChangesCheckChangeStatusEmployee.split(",");
-    if(changes.length()==0){
-        QMessageBox::information(this, "", "Поле для изменений не заполнено!");
-    }
-    else if(changes.length()==4 || changes.length()==5){
-        QMessageBox::information(this, "", "Данные успешно отправлены!");
-        inputCheckChangeStatusEmployee->clear();
-    }
-    else QMessageBox::information(this, "", "Проверьте ввёденные данные!");
+    QMessageBox::information(this, "", "Данные успешно отправлены!");
 }
 
 Widget::~Widget()
