@@ -24,6 +24,7 @@ void Widget::initFrame(){
     mainWidget->setFlow(QListView::TopToBottom);
     glw->addWidget(mainWidget);
     connect(socket, SIGNAL(readyRead()), SLOT(request()));
+    //item = new QListWidgetItem(QDate::currentDate().toString("dddd").toLower(), mainWidget);
 }
 
 QByteArray parse(QByteArray &data, int index){
@@ -43,39 +44,66 @@ bool isValidType(int type){
 
 void Widget::processServiceRequest(QString login, int type, int role, QString port, QByteArray data){
     item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " W_Service request: " + login, mainWidget);
+    bool denied = true;
     switch(type){
     case 20:{
-        socket->writeDatagram(("0/"+port+"|"+data).toUtf8(), QHostAddress::LocalHost, 25566);
+        if(role==1 || role==5){
+            socket->writeDatagram(("0/"+port+"|"+data).toUtf8(), QHostAddress::LocalHost, 25566);
+            denied = false;
+        }
         break;
     }
     case 21:{
-        socket->writeDatagram(("1/"+port).toUtf8(), QHostAddress::LocalHost, 25566);
+        if(role==1 || role==5){
+            socket->writeDatagram(("1/"+port).toUtf8(), QHostAddress::LocalHost, 25566);
+            denied = false;
+        }
         break;
     }
     case 22:{
-        socket->writeDatagram(("2/"+port+"?"+QString::fromUtf8(data)).toUtf8(), QHostAddress::LocalHost, 25566);
+        if(role==1 || role==5){
+            socket->writeDatagram(("2/"+port+"?"+QString::fromUtf8(data)).toUtf8(), QHostAddress::LocalHost, 25566);
+            denied = false;
+        }
         break;
     }
     case 23:{
-        socket->writeDatagram(("3/"+port+"?"+QString::fromUtf8(data)).toUtf8(), QHostAddress::LocalHost, 25566);
+        if(role==1 || role==5){
+            socket->writeDatagram(("3/"+port+"?"+QString::fromUtf8(data)).toUtf8(), QHostAddress::LocalHost, 25566);
+            denied = false;
+        }
         break;
     }
     case 24:{
-        socket->writeDatagram(("4/"+port+"?"+QString::fromUtf8(data)).toUtf8(), QHostAddress::LocalHost, 25566);
+        if(role==1 || role==5){
+            socket->writeDatagram(("4/"+port+"?"+QString::fromUtf8(data)).toUtf8(), QHostAddress::LocalHost, 25566);
+            denied = false;
+        }
         break;
     }
     case 25:{
-        socket->writeDatagram(("5/"+port+"?"+QString::fromUtf8(data)).toUtf8(), QHostAddress::LocalHost, 25566);
+        if(role==1 || role ==5){
+            socket->writeDatagram(("5/"+port+"?"+QString::fromUtf8(data)).toUtf8(), QHostAddress::LocalHost, 25566);
+            denied = false;
+        }
         break;
     }
     case 26:{
-        socket->writeDatagram(("6/"+port+"?"+QString::fromUtf8(data)).toUtf8(), QHostAddress::LocalHost, 25566);
+        if(role==1 || role==5){
+            socket->writeDatagram(("6/"+port+"?"+QString::fromUtf8(data)).toUtf8(), QHostAddress::LocalHost, 25566);
+            denied = false;
+        }
         break;
     }
     default:{
-        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Unknown request at pSV", mainWidget);
+        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + "processServiceRequest: Unknown request type", mainWidget);
         break;
     }
+    }
+    if(denied){
+        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + "processServiceRequest: denied", mainWidget);
+        QString body = "-1/denied";
+        socket->writeDatagram(body.toUtf8(), QHostAddress::LocalHost, port.toInt());
     }
 }
 
@@ -153,14 +181,14 @@ void Widget::processRequest(QNetworkDatagram datagram){
     case 200:{
         QString port = parse(data, data.indexOf("?"));
         QString answer = data;
-        socket->writeDatagram(("200/"+answer+"?"+data).toUtf8(), QHostAddress::LocalHost, port.toInt());
+        socket->writeDatagram(("200/"+answer).toUtf8(), QHostAddress::LocalHost, port.toInt());
         break;
     }
     //w_service->gw->cl statusOutput
     case 201:{
         QString port = parse(data, data.indexOf("?"));
         QString answer = data;
-        socket->writeDatagram(("201/"+answer+"?"+data).toUtf8(), QHostAddress::LocalHost, port.toInt());
+        socket->writeDatagram(("201/"+answer).toUtf8(), QHostAddress::LocalHost, port.toInt());
         break;
     }
     //w_service->gw->cl Загрузка role.csv
