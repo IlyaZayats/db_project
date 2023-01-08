@@ -46,7 +46,7 @@ void Widget::initFrame(){
 
 void Widget::notification(){
     QString cur = QDateTime::currentDateTime().toString("hh:mm:ss");
-    if(cur == "00:00:00"){
+    if(cur == "00:00:00" /*"17:04:30"*/){
         item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " Midnight notification", mainWidget);
         QSqlQuery query(db);
         //query.prepare("UPDATE Auth SET approved=false;");
@@ -88,7 +88,8 @@ void Widget::sickCheck(QString login, QString employ_id){
         QString today_s = QDate::currentDate().toString("yyyy-MM-dd");
         QDate today = QDate::fromString(today_s, "yyyy-MM-dd");
 
-        QDate deadline = end_date.addDays(1);
+        //QDate deadline = end_date.addDays(1);
+        QDate deadline = end_date.addDays(6);
 
         if(today>deadline && !approved){
             while(q_weeks.next()){
@@ -96,7 +97,7 @@ void Widget::sickCheck(QString login, QString employ_id){
                 QString start_week_string = q_weeks.value(1).toString();
                 QString end_week_string = q_weeks.value(2).toString();
 
-                //qDebug() << week_id;
+                qDebug() << week_id;
 
                 QDate start_week = QDate::fromString(start_week_string, "yyyy-MM-dd");
                 QDate end_week = QDate::fromString(end_week_string, "yyyy-MM-dd");
@@ -106,13 +107,15 @@ void Widget::sickCheck(QString login, QString employ_id){
                     QDate temp_week = start_week;
                     while(temp_week<=end_week){
                         if(temp_sick==temp_week){
-                            //item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: Debug: temp_sick=" + temp_sick.toString("yyyy-MM-dd") + " temp_week=" + temp_week.toString("yyyy-MM-dd") + " week_id=" + week_id, mainWidget);
+                            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: Debug: temp_sick=" + temp_sick.toString("yyyy-MM-dd") + " temp_week=" + temp_week.toString("yyyy-MM-dd") + " week_id=" + week_id, mainWidget);
                             QString day = temp_sick.toString("dddd").toLower();
                             q_record.prepare("SELECT id,"+day+" FROM Schedule WHERE week_id="+week_id+" AND employ_id="+employ_id+";");
                             q_record.exec();
+                            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: Debug: " + q_record.lastQuery(), mainWidget);
                             q_record.first();
                             QString schedule_id = q_record.value(0).toString();
                             int schedule_day_h = q_record.value(1).toInt();
+                            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: Debug: schedule_day_h" + QString::number(schedule_day_h), mainWidget);
                             q_record.prepare("SELECT hours FROM Record WHERE schedule_id="+schedule_id+";");
                             q_record.exec();
                             q_record.first();
@@ -212,7 +215,7 @@ void Widget::login(QByteArray data){
 //            qDebug() << pwd << Qt::endl;
 //            qDebug() << token << Qt::endl;
             QSqlQuery query = QSqlQuery(db);
-            query.prepare("SELECT employ_id FROM Auth WHERE login='" + login + "' AND pwd='" + QString::fromUtf8(pwd_raw) +"';");
+            query.prepare("SELECT employ_id FROM Auth WHERE login='" + login + "' AND pwd='" + QString::fromUtf8(pwd_raw) +"' AND status=1;");
             //query.prepare();
             //query.bindValue(":login", login);
             //query.bindValue(":pwd", pwd_raw);
@@ -441,7 +444,7 @@ void Widget::initNewWeek(){
     while(query.next()){
         q.prepare("SELECT monday, tuesday, wednesday, thursday, friday, saturday, sunday, hours FROM Schedule WHERE employ_id="+query.value(0).toString()+" AND week_id="+QString::number(id.toInt()-1)+";");
         q.exec();
-        qDebug() << q.lastQuery();
+        //qDebug() << q.lastQuery();
         q.first();
         if(q.isValid()){
             QVector<QString> v;
@@ -450,11 +453,11 @@ void Widget::initNewWeek(){
             }
             q.prepare("INSERT INTO Schedule (employ_id, week_id, monday, tuesday, wednesday, thursday, friday, saturday, sunday, hours) VALUES ("+query.value(0).toString()+","+id+","+v[0]+","+v[1]+","+v[2]+","+v[3]+","+v[4]+","+v[5]+","+v[6]+","+v[7]+");");
             q.exec();
-            qDebug() << q.lastQuery();
+            //qDebug() << q.lastQuery();
             QString schedule_id = q.lastInsertId().toString();
             q.prepare("INSERT INTO Record (schedule_id) VALUES ("+schedule_id+");");
             q.exec();
-            qDebug() << q.lastQuery();
+            //qDebug() << q.lastQuery();
             item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " initNewWeek: init schedule and record for " + query.value(0).toString() + " completed" , mainWidget);
         } else {
             item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " initNewWeek: schedule for " + query.value(0).toString() + " doenst exist" , mainWidget);

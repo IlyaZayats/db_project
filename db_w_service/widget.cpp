@@ -309,13 +309,20 @@ void Widget::statusInsertChanges(QByteArray data){
     if (type == 0){
         //fired
         QString fired_at = data;
-        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " statusInsertChanges: " + fired_at, mainWidget);
-        query.prepare("INSERT INTO Fired (employ_id, fired_at) VALUES ("+employ_id+",'"+fired_at+"');");
+        query.prepare("SELECT * FROM Fired WHERE employ_id="+employ_id+";");
         query.exec();
-        query.prepare("UPDATE Employ SET status=0 WHERE id="+employ_id+";");
-        query.exec();
-        body+="1";
-        item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " statusInsertChanges: Fired employ with id=" + employ_id, mainWidget);
+        query.first();
+        if(query.isValid()){
+            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " statusInsertChanges: fire already fired error" , mainWidget);
+        } else {
+            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " statusInsertChanges: " + fired_at, mainWidget);
+            query.prepare("INSERT INTO Fired (employ_id, fired_at) VALUES ("+employ_id+",'"+fired_at+"');");
+            query.exec();
+            query.prepare("UPDATE Employ SET status=0 WHERE id="+employ_id+";");
+            query.exec();
+            body+="1";
+            item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " statusInsertChanges: Fired employ with id=" + employ_id, mainWidget);
+        }
     } else {
         //vac or sick
         QString id = parse(data, data.indexOf(","));
@@ -330,6 +337,7 @@ void Widget::statusInsertChanges(QByteArray data){
             table = "Sick";
         }
         query.prepare("SELECT * FROM "+table+" WHERE id=" + id + ";");
+        query.exec();
         query.first();
         if(query.isValid()){
             if(type==2){
