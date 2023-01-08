@@ -215,7 +215,7 @@ void Widget::login(QByteArray data){
 //            qDebug() << pwd << Qt::endl;
 //            qDebug() << token << Qt::endl;
             QSqlQuery query = QSqlQuery(db);
-            query.prepare("SELECT employ_id FROM Auth WHERE login='" + login + "' AND pwd='" + QString::fromUtf8(pwd_raw) +"' AND status=1;");
+            query.prepare("SELECT employ_id FROM Auth WHERE login='" + login + "' AND pwd='" + QString::fromUtf8(pwd_raw) +"';");
             //query.prepare();
             //query.bindValue(":login", login);
             //query.bindValue(":pwd", pwd_raw);
@@ -231,16 +231,25 @@ void Widget::login(QByteArray data){
                 body+="0|";
             } else {
                 QString employ_id = query.value("employ_id").toString();
-                query.prepare("SELECT role_id FROM Employ WHERE id='"+employ_id+"';");
+                query.prepare("SELECT * FROM Employ WHERE status=1 AND id="+employ_id+";");
                 query.exec();
                 query.first();
-                role = query.value("role_id").toString();
-                item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " User with login " + login
-                                           + " authorised", mainWidget);
-                body += "1|";
-                QString updated_at = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.ms");
-                query.prepare("UPDATE Auth SET token='" + token + "', active=true, updated_at='"+updated_at+"', port='"+QString::number(data.toInt())+"' WHERE login='" + login +"'");
-                query.exec();
+                if(query.isValid()){
+                    query.prepare("SELECT role_id FROM Employ WHERE id='"+employ_id+"';");
+                    query.exec();
+                    query.first();
+                    role = query.value("role_id").toString();
+                    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " User with login " + login
+                                               + " authorised", mainWidget);
+                    body += "1|";
+                    QString updated_at = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.ms");
+                    query.prepare("UPDATE Auth SET token='" + token + "', active=true, updated_at='"+updated_at+"', port='"+QString::number(data.toInt())+"' WHERE login='" + login +"'");
+                    query.exec();
+                } else {
+                    body += "-2|";
+                    item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " User with login " + login
+                                               + " fired", mainWidget);
+                }
                 //qDebug() << query.lastQuery();
             }
             body+=token+"|"+QString::number(data.toInt())+"|"+role;
@@ -602,20 +611,21 @@ void Widget::force(){
                         sickCheck(login, employ_id);
                         item = new QListWidgetItem(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + " force: Calculating for " + login, mainWidget);
                         //
-                        q.prepare("SELECT Schedule."+ day + ", Record."+day+", Record.hours from Schedule JOIN Record ON Record.schedule_id=" + schedule_id + ";");
+                        //q.prepare("SELECT Schedule."+ day + ", Record."+day+", Record.hours from Schedule JOIN Record ON Record.schedule_id=" + schedule_id + ";");
+                        q.prepare("SELECT Schedule.sunday, Record.sunday, Record.hours from Schedule JOIN Record ON Record.schedule_id=" + schedule_id + " WHERE employ_id="+employ_id+" AND week_id=(SELECT max(id) from weeks);");
                         //
                         q.exec();
                         q.first();
                         int h_s = q.value(0).toInt();
-                        //qDebug() << " q "<<q.lastQuery();
-                        //qDebug() << " H_S "<<h_s;
+                        qDebug() << " q "<<q.lastQuery();
+                        qDebug() << " H_S "<<h_s;
                         int h_r = q.value(1).toInt();
                         int sum = q.value(2).toInt();
-                        //qDebug() << " q "<<q.lastQuery();
-                        //qDebug() << " H_R " <<h_r;
+                        qDebug() << " q "<<q.lastQuery();
+                        qDebug() << " H_R " <<h_r;
                         int time = roundTime(h_r-h_s);
                         sum+=(int)time;
-                        //qDebug()<<" TIME " <<time;
+                        qDebug()<<" TIME " <<time;
                         q.prepare("UPDATE Record SET "+day+"="+QString::number(time)+", hours="+QString::number(sum)+" WHERE schedule_id="+schedule_id+";");
                         q.exec();
                     }
