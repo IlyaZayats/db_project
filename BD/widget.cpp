@@ -10,6 +10,10 @@
 #include <QRegularExpression>
 #include <QTableWidget>
 #include <iostream>
+#include "Random.hpp"
+#include <QtSql/QSql>
+#include <QtSql/QSqlDatabase>
+#include <QUdpSocket>
 
 Widget::Widget(QWidget *parent)
     : QWidget(parent)
@@ -17,12 +21,13 @@ Widget::Widget(QWidget *parent)
 {
     idLogInRequest = 10;
     idLogOutRequest = 12;
-    token = "FGQu7SqSEbMi";
     grid = new QGridLayout(this);
     mainWidget = new QWidget();
     mainWidget->resize(800,600);
     mainLayout = new QGridLayout(mainWidget);
     grid->addWidget(mainWidget);
+    udpSocket = new QUdpSocket(this);
+    udpSocket->bind(QHostAddress::LocalHost, 25564);
     creatingLogInWindow();
     //////////////////////////////////////////////////////////////ВЫБРАТЬ ФАЙЛ//////////////
 //    useFileButton = new QPushButton("Выбрать файл");
@@ -38,6 +43,8 @@ Widget::Widget(QWidget *parent)
 
 
 void Widget::creatingLogInWindow(){
+    if(!createConnection()) qDebug() << "Не удалось подключиться к бд";
+    qDebug() << port; //генерация случайного числа
     nameApp = new QLabel();
     nameApp->setText("ЛУЧШЕЕ ПРИЛОЖЕНИЕ");
     nameApp->setStyleSheet(QString("font-size: %1px").arg(40));
@@ -51,6 +58,7 @@ void Widget::creatingLogInWindow(){
     password->setText("Пароль");
     inputPassword = new QLineEdit();
     buttonAuth = new QPushButton();
+    error = new QLabel("");
     buttonAuth->setText("Войти");
     connect(buttonAuth, SIGNAL(clicked()), this, SLOT(on_buttonAuth_clicked()));
     mainLayout->addWidget(nameApp, 0, 3, 1, 3,  Qt::AlignTop);
@@ -59,8 +67,32 @@ void Widget::creatingLogInWindow(){
     mainLayout->addWidget(inputLogin, 2, 1, 1, 7);
     mainLayout->addWidget(password, 3, 0, 1, 1, Qt::AlignTop);
     mainLayout->addWidget(inputPassword, 3, 1, 1, 7);
-    mainLayout->addWidget(buttonAuth, 4, 1, 1, 2, Qt::AlignTop);
+    mainLayout->addWidget(error, 4, 1, 1, 7);
+    mainLayout->addWidget(buttonAuth, 5, 1, 1, 2, Qt::AlignTop);
 }
+
+bool Widget:: createConnection(){
+    QSqlDatabase db = QSqlDatabase::addDatabase("QPSQL");
+    db.setDatabaseName("postgres");;
+       db.setUserName("postgres");
+       db.setPassword("279091");
+       if (!db.open())
+       {
+           return false;
+       }
+       else{
+           return true;
+       }
+       return true;
+}
+
+//bool createTables(){
+//    QSqlQuery query;
+//    query.exec("CREATE TABLES passwords ("
+//               "id INTEGER PRIMARY KEY, "
+//               "login VARCHAR NOT NULL)");
+//    return(1);
+//}
 
 
 void Widget::on_useFileButton_clicked()
@@ -71,17 +103,12 @@ void Widget::on_useFileButton_clicked()
     if (!file.open(QFile::ReadOnly | QFile::Text)){
         QMessageBox::warning(this, "title", "file not open");
     }
-    qDebug() << fileName;
     fileName.remove(0,fileName.lastIndexOf("/")+1);
     fileLabel->setText(fileName);
     QString data = file.readAll();
     qDebug() << data;
-    //data.remove(QChar('\n'));
-    QString q1 = "\n";
-    data.remove(0, data.indexOf(q1)+1); //удаляю первую строку
-    data.replace("\n", ";");
-    data+=";";
-    qDebug() << data;
+    udpSocket->writeDatagram(data.toUtf8(), QHostAddress::LocalHost, 25564);
+    connect(udpSocket, SIGNAL(readyRead()), this, SLOT(ReadingDataFile()));
 
 
 //    QGridLayout* grid = new QGridLayout(this);
@@ -92,14 +119,88 @@ void Widget::on_useFileButton_clicked()
 //    grid->addWidget(fileTextName, 11, 0);
 }
 
+void Widget::ReadingDataFile(){
+    QHostAddress sender;
+    quint16 senderPort;
+    QString data;
+    while(udpSocket->hasPendingDatagrams()){
+        QByteArray datagram;
+        datagram.resize(udpSocket->pendingDatagramSize());
+//        udpSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+        udpSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+        data = QString(datagram);
+        qDebug()<<data;
+    }
+}
+
 
 bool Widget::checkPassRegExp(QRegularExpression reg, QString str1, QString str2){
     auto match1 = reg.match(str1);
     auto match2 = reg.match(str2);
-    if(match1.hasMatch() && match2.hasMatch() && str2.length()>=8 && str2.length()<=20) return true;
+    if(match1.hasMatch() && match2.hasMatch() && str2.length()>=5 && str2.length()<=20) return true;
     else{
-        QMessageBox::information(this, "", "Неверно введённые данные!");
+        error->setText("Неверно введённые данные!");
+        error->setStyleSheet("color : red");
+        inputLogin->clear();
+        inputPassword->clear();
         return false;
+    }
+}
+
+void Widget::ReadingData(){
+    QHostAddress sender;
+    quint16 senderPort;
+    while(udpSocket->hasPendingDatagrams()){
+        QByteArray datagram;
+        datagram.resize(udpSocket->pendingDatagramSize());
+//        udpSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+        udpSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+        strUserInfoGet = QString(datagram);
+
+    }
+    reqBtnAuth(strUserInfoGet);
+}
+
+void Widget::reqBtnAuth(QString str){
+    //Строка о пользователе, полученная с бэка
+    QString strAnswerGet = "";
+    QString strRoleGet = "";
+    token = "";
+    for(int i=strUserInfoGet.lastIndexOf("|")+1; i<strUserInfoGet.length(); i++){
+        token += strUserInfoGet[i];
+    }
+    qDebug() << token;
+    for(int i=strUserInfoGet.indexOf("/")+1; i<strUserInfoGet.indexOf("|"); i++){
+        strAnswerGet += strUserInfoGet[i];
+    }
+    for(int i=strUserInfoGet.indexOf("|")+1; i<strUserInfoGet.lastIndexOf("|"); i++){
+        strRoleGet += strUserInfoGet[i];
+    }
+    qDebug() << strUserInfoGet;
+    int answerGet = strAnswerGet.toInt();
+    roleGet = strRoleGet.toInt();
+    if(answerGet == 1){
+        if(roleGet == 1 || roleGet == 5){
+            for (int i = 0; i < mainLayout->count(); ++i)
+            {
+                QWidget *widg = mainLayout->itemAt(i)->widget();
+                widg->hide();
+            }
+            creatingUserWindow();
+        }
+        else{
+            for (int i = 0; i < mainLayout->count(); ++i)
+            {
+                QWidget *widg = mainLayout->itemAt(i)->widget();
+                widg->hide();
+            }
+            creatingAnotherUserWindow();
+        }
+    }
+    else{
+        error->setText("Введён неверный логин или пароль!");
+        error->setStyleSheet("color : red");
+        creatingLogInWindow();
     }
 }
 
@@ -108,41 +209,16 @@ void Widget::on_buttonAuth_clicked(){
     pass = inputPassword->text();
     QRegularExpression reg("[0-9]|[A-Z]|[a-z]|[!@#$%^&*?]");
     if(checkPassRegExp(reg, log, pass)){
-        for (int i = 0; i < mainLayout->count(); ++i)
-        {
-            QWidget *widg = mainLayout->itemAt(i)->widget();
-            widg->hide();
-        }
         /*Блок отправки данных о логине и пароле и получении с бэка инфы о пользователе*/
         QString strUserInfoLogInSend = ""; //Строка о пользователе, отправленная на бэк
         strUserInfoLogInSend = QString::number(idLogInRequest) + "/" + log + "|" + pass;
         qDebug()<<strUserInfoLogInSend;
-        QString strUserInfoGet = ""; //Строка о пользователе, полученная с бэка
-        strUserInfoGet="0/1|1|FGQu7SqSEbMi";
-        QString strAnswerGet = "";
-        QString strRoleGet = "";
-        for(int i=strUserInfoGet.indexOf("/")+1; i<strUserInfoGet.indexOf("|"); i++){
-            strAnswerGet += strUserInfoGet[i];
-        }
-        for(int i=strUserInfoGet.indexOf("|")+1; i<strUserInfoGet.lastIndexOf("|"); i++){
-            strRoleGet += strUserInfoGet[i];
-        }
-        qDebug() << strAnswerGet << " " <<strRoleGet;
-        int answerGet = strAnswerGet.toInt();
-        roleGet = strRoleGet.toInt();
-        if(answerGet == 1){
-            if(roleGet == 1 || roleGet == 5){
-                creatingUserWindow();
-            }
-            else{
-                creatingAnotherUserWindow();
-            }
-        }
-        else{
-            QMessageBox::information(this, "", "Ответ с сервера не получен!");
-        }
-
+        port = Random::get(3000, 9999);
+        qDebug() << "Port: " <<port;
+        udpSocket->writeDatagram(strUserInfoLogInSend.toUtf8(), QHostAddress::LocalHost, 25564);
+        connect(udpSocket, SIGNAL(readyRead()), this, SLOT(ReadingData()));
     }
+
 }
 
 void Widget::creatingUserWindow(){
@@ -156,6 +232,7 @@ void Widget::creatingUserWindow(){
     nameMenu->setStyleSheet(QString("font-size: %1px").arg(30));
     btnServise1 = new QPushButton();
     btnServise1->setText("Сервис 1");
+    connect(btnServise1, SIGNAL(clicked()), this, SLOT(on_buttonServ1_clicked()));
     btnServise2 = new QPushButton();
     btnServise2->setText("Сервис 2");
     btnServise3 = new QPushButton();
@@ -186,6 +263,23 @@ void Widget::creatingUserWindow(){
     connect(btnServise3, SIGNAL(clicked()), this, SLOT(on_buttonServ3_clicked()));
     mainLayout->addWidget(btnLogOut, 4, 4, 2, 2);
     mainLayout->addWidget(nameRole, 4, 8, 2, 2);
+}
+
+void Widget::on_buttonServ1_clicked(){
+    for (int i = 0; i < mainLayout->count(); ++i)
+    {
+        QWidget *widg = mainLayout->itemAt(i)->widget();
+        widg->hide();
+    }
+    btnBack = new QPushButton();
+    btnBack->setText("<<");
+    connect(btnBack, SIGNAL(clicked()), this, SLOT(creatingUserWindow()));
+    useFileButton = new QPushButton("Выбрать файл");
+    fileLabel = new QLabel("");
+    connect(useFileButton, SIGNAL(clicked()), this, SLOT(on_useFileButton_clicked()));
+    mainLayout->addWidget(btnBack, 0, 0, 1, 2);
+    mainLayout->addWidget(useFileButton, 1, 0, 1, 5);
+    mainLayout->addWidget(fileLabel, 2, 0, 1, 3);
 }
 
 //Окно для ролей с id=2,3 или 4
@@ -224,15 +318,47 @@ void Widget::creatingAnotherUserWindow(){
     mainLayout->addWidget(nameRole, 1, 8, 1, 2, Qt::AlignCenter);
 }
 
+void Widget::ReadingDataLogOut(){
+    QHostAddress sender;
+    quint16 senderPort;
+    while(udpSocket->hasPendingDatagrams()){
+        QByteArray datagram;
+        datagram.resize(udpSocket->pendingDatagramSize());
+//        udpSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+        udpSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+        strUserInfoGet = QString(datagram);
+
+    }
+    reqBtnLogOut(strUserInfoGet);
+}
+
+void Widget::reqBtnLogOut(QString str){
+    qDebug() <<str;
+    QString answerLogOut = "";
+    for(int i=str.indexOf("/")+1; i<str.length(); i++){
+        answerLogOut += str[i];
+    }
+    if(answerLogOut.toInt() == 1){
+        for (int i = 0; i < mainLayout->count(); ++i)
+        {
+            QWidget *widg = mainLayout->itemAt(i)->widget();
+            widg->hide();
+        }
+        creatingLogInWindow();
+    }
+}
+
 void Widget::on_buttonLogOut_clicked(){
     for (int i = 0; i < mainLayout->count(); ++i)
     {
         QWidget *widg = mainLayout->itemAt(i)->widget();
         widg->hide();
     }
-    QString strUserInfoLogInSend = "";
-    strUserInfoLogInSend = QString::number(idLogOutRequest) + "/" + log + "|" + token;  //Отправка запроса на выход из учётной записи пользователя
-    creatingLogInWindow();
+    strUserInfoLogInSend = "";
+    strUserInfoLogInSend = QString::number(idLogOutRequest) + "/" + log + "|" + token;
+    connect(udpSocket, SIGNAL(readyRead()), this, SLOT(ReadingDataLogOut()));
+    udpSocket->writeDatagram(strUserInfoLogInSend.toUtf8(), QHostAddress::LocalHost, 25564);
+
 }
 
 void Widget::on_buttonServ3_clicked(){
@@ -273,31 +399,66 @@ void Widget::on_btnGenerateReport_clicked(){
         QWidget *widg = mainLayout->itemAt(i)->widget();
         widg->hide();
     }
-    creatingGenerateReportWindow();
+    genRep = "";
+    for(int i = 1; i<=11; i++){
+        genRep = "20/" + log + "|" + token + "?" + QString::number(i);
+        udpSocketRep = new QUdpSocket();
+        udpSocketRep->writeDatagram(genRep.toUtf8(), QHostAddress::LocalHost, 25564);
+        connect(udpSocketRep, SIGNAL(readyRead()), this, SLOT(ReadingDataReport()));
+    }
+
+
 }
 
-void Widget::creatingGenerateReportWindow(){
+void Widget::creatingGenerateReportWindow(QString str){
     btnBack = new QPushButton();
     btnBack->setText("<<");
     connect(btnBack, SIGNAL(clicked()), this, SLOT(on_buttonServ3_clicked()));
     nameGenerateReport = new QLabel();
     nameGenerateReport->setText("Отчёт о переработках");
     nameGenerateReport->setStyleSheet(QString("font-size: %1px").arg(25));
-    tableGenerateReport = new QTableWidget( 3, 6 );
+    tableGenerateReport = new QTableWidget( 22, 23 );
     QStringList arrGenerateReport;
-    arrGenerateReport << "id работника" << "ФИО" << "Должность" << "Необходимое количество часов по ставке" << "Количество отработанных часов" << "Причина изменения(при наличии)";
-    for (int j = 0 ; j < 6; ++j ) {
+    arrGenerateReport << "Фамилия" << "Имя" << "Отчество" << "Роль работника" << "id расписания" << "id расписания работника" << "Часы в понедельник(по расписанию)" << "Часы во вторник(по расписанию)" << "Часы в среду(по расписанию)" << "Часы в четверг(по расписанию)" << "Часы в пятницу(по расписанию)" << "Часы в субботу(по расписанию)" << "Часы в воскресенье(по расписанию)" <<"Всего часов(по расписанию)" <<"id отработанных часов" <<"Отработанные часы в понедельник" <<"Отработанные часы во вторник" <<"Отработанные часы в среду" <<"Отработанные часы в четверг" <<"Отработанные часы в пятницу" <<"Отработанные часы в субботу" <<"Отработанные часы в воскресенье" <<"Всего отработанных часов";
+    for (int j = 0 ; j < 23; ++j ) {
         itemGenerateReport = new QTableWidgetItem(arrGenerateReport[j]);
         tableGenerateReport->setHorizontalHeaderItem(j, itemGenerateReport);
+        itemGenerateReport->setFlags(Qt::ItemIsEditable);
     }
     tableGenerateReport->horizontalHeader()->setStretchLastSection(true);
-    for (int i = 0; i < 3; i++ ) {
-        for(int j = 0; j < 6; j++){
-            QTableWidgetItem* itemGenerateReport1 = new QTableWidgetItem("a"+QString::number(i)+"b"+QString::number(j));
-            tableGenerateReport->setItem(i, j, itemGenerateReport1);
+    str.remove("200/1|");
+    str.replace("*", ";");
+    str.remove("?1|");
+    qDebug() << "Строчка: " <<str;
+    QString strVr="";
+    int rowNumber = 0;
+    int colNumber = 0;
+    for(int i=0; i<str.length(); i++){
+        if(colNumber==23){
+            colNumber = 0;
         }
-    }
+        if(QString(str[i])==";"){
+            strVr = QString::number(strVr.toDouble()/60);
+            QTableWidgetItem* itemGenerateReport1 = new QTableWidgetItem(strVr);
+            tableGenerateReport->setItem(rowNumber, colNumber, itemGenerateReport1);
+            rowNumber++;
+            colNumber++;
+            strVr="";
+        }
+        else if(QString(str[i])!=","){
+            strVr+=str[i];
+        }
+        else if(QString(str[i])==","){
+            if(colNumber>=6 && colNumber<=22 || colNumber==14){
+                strVr = QString::number(strVr.toDouble()/60);
+            }
+            QTableWidgetItem* itemGenerateReport1 = new QTableWidgetItem(strVr);
+            tableGenerateReport->setItem(rowNumber, colNumber, itemGenerateReport1);
+            colNumber++;
+            strVr="";
+        }
 
+    }
     /*
     for (int i = 0; i < 3; i++ ) {
         for(int j = 0; j < 6; j++){
@@ -308,7 +469,7 @@ void Widget::creatingGenerateReportWindow(){
     */
 
     nameInputGenerateReport = new QLabel();
-    nameInputGenerateReport->setText("Для изменения введите id работника, количество отработанных часов за неделю и причину изменения через запятую");
+    nameInputGenerateReport->setText("Для изменения введите id работника");
     nameInputGenerateReport->setStyleSheet(QString("font-size: %1px").arg(18));
     inputGenerateReport = new QLineEdit();
     btnInputChange = new QPushButton();
@@ -326,43 +487,34 @@ void Widget::creatingGenerateReportWindow(){
     mainLayout->addWidget(btnSendReport, 6, 3, 1, 4);
 }
 
-void Widget::on_btnInputChangeGenerateReport_clicked(){
-    inpChangesGenerateReport = inputGenerateReport->text();
-    QString sendChanges = "";
-    QStringList changes;
-    changes = inpChangesGenerateReport.split(",");
-    if(changes.length()==0){
-        QMessageBox::information(this, "", "Поле для изменений не заполнено!");
+void Widget::ReadingDataReport(){
+    QHostAddress sender;
+    quint16 senderPort;
+    while(udpSocketRep->hasPendingDatagrams()){
+        QByteArray datagram;
+        datagram.resize(udpSocketRep->pendingDatagramSize());
+//        udpSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+        udpSocketRep->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+        strGetReportData = QString(datagram);
+        creatingGenerateReportWindow(strGetReportData);
     }
-    else if(changes.length()==3){
-        QMessageBox::information(this, "", "Данные успешно отправлены!");
-        inputGenerateReport->clear();
-    }
-    else QMessageBox::information(this, "", "Проверьте ввёденные данные!");
 }
 
 void Widget::on_btnSendGenerateReport_clicked(){
 
+}
 
-    QFile f1;
-          f1.setFileName("f1.csv");
-          f1.open(QIODevice::WriteOnly | QIODevice::Text);
-          QString strTable = "";
-          QString strTableElem="";
-          for (int i = 0; i < 3; i++ ) {
-              for(int j = 0; j < 6; j++){
-                   strTableElem = tableGenerateReport->takeItem(i,j)->text();
-                   strTable += strTableElem + ",";
-                   QTableWidgetItem* itemGenerateReport1 = new QTableWidgetItem(strTableElem);
-                   tableGenerateReport->setItem(i, j, itemGenerateReport1);
-              }
-              strTable.resize(strTable.size() - 1);
-
-              strTable += ";";
-          }
-          QTextStream stream( &f1 );
-          stream << strTable;
-                f1.close();
+void Widget::ReadingDataReportSend(){
+    QHostAddress sender;
+    quint16 senderPort;
+    while(udpSocketRep1->hasPendingDatagrams()){
+        QByteArray datagram;
+        datagram.resize(udpSocketRep1->pendingDatagramSize());
+//        udpSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+        udpSocketRep1->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+        strGetReportData = QString(datagram);
+        creatingGenerateReportWindow(strGetReportData);
+    }
 }
 
 void Widget::on_btnCheckChangeStatusEmployee_clicked(){
@@ -378,45 +530,105 @@ void Widget::creatingCheckChangeStatusEmployeeWindow(){
     btnBack = new QPushButton();
     btnBack->setText("<<");
     connect(btnBack, SIGNAL(clicked()), this, SLOT(on_buttonServ3_clicked()));
-    nameCheckChangeStatusEmployee = new QLabel();
-    nameCheckChangeStatusEmployee->setText("Статус больничных, отпусков, увольнений");
-    nameCheckChangeStatusEmployee->setStyleSheet(QString("font-size: %1px").arg(25));
-    tableCheckChangeStatusEmployee = new QTableWidget( 3, 7 );
-    QStringList arrGenerateReport;
-    arrGenerateReport << "id работника" << "ФИО" << "Должность" << "Статус" << "Дата начала" << "Дата окончания" << "Подтверждение";
-    for (int j = 0 ; j < 7; ++j ) {
-        itemCheckChangeStatusEmployee = new QTableWidgetItem(arrGenerateReport[j]);
-        tableCheckChangeStatusEmployee->setHorizontalHeaderItem(j, itemCheckChangeStatusEmployee);
-    }
-    tableCheckChangeStatusEmployee->horizontalHeader()->setStretchLastSection(true);
+    nameTableSick = new QLabel();
+    nameTableSick->setText("Статус больничных");
+    nameTableSick->setStyleSheet(QString("font-size: %1px").arg(25));
+    nameTableVocation = new QLabel();
+    nameTableVocation->setText("Статус отпусков");
+    nameTableVocation->setStyleSheet(QString("font-size: %1px").arg(25));
+    nameTableFired = new QLabel();
+    nameTableFired->setText("Статус увольнений");
+    nameTableFired->setStyleSheet(QString("font-size: %1px").arg(25));
     nameInputCheckChangeStatusEmployee = new QLabel();
-    nameInputCheckChangeStatusEmployee->setText("Для добавления/изменения введите id работника, статус, дату начала, дату окончания, подтверждение(при наличии) через запятую");
+    nameInputCheckChangeStatusEmployee->setText("Для добавления/изменения введите id работника");
     nameInputCheckChangeStatusEmployee->setStyleSheet(QString("font-size: %1px").arg(18));
     inputCheckChangeStatusEmployee = new QLineEdit();
     btnSendChange = new QPushButton();
     btnSendChange->setText("Внести изменения");
     connect(btnSendChange, SIGNAL(clicked()), this, SLOT(on_btnInputChangeCheckChangeStatusEmployee_clicked()));
+
+
+    tableSick = new QTableWidget(2,4);
+    QStringList listSick;
+    listSick << "id работника" << "Дата начала больничного" << "Дата окончания больничного" << "Подтверждение";
+    QTableWidgetItem* itemSick;
+    for (int j = 0 ; j < 4; ++j ) {
+        itemSick = new QTableWidgetItem(listSick[j]);
+        tableSick->setHorizontalHeaderItem(j, itemSick);
+        itemSick->setFlags(Qt::ItemIsEditable);
+    }
+    QStringList sick1, sick2;
+    sick1 << "4" << "2023-01-02" << "2023-02-02" << "true";
+    sick2 << "5" << "2023-02-01" << "2023-03-01" << "true";
+    for(int j=0; j<4; j++){
+        itemSick = new QTableWidgetItem(sick1[j]);
+        tableSick->setItem(0, j, itemSick);
+    }
+    for(int j=0; j<4; j++){
+        itemSick = new QTableWidgetItem(sick2[j]);
+        tableSick->setItem(1, j, itemSick);
+    }
+
+    tableSick->horizontalHeader()->setStretchLastSection(true);
+
+
+    tableVocation = new QTableWidget(2,4);
+    QStringList listVocation;
+    listVocation << "id работника" << "Дата начала отпуска" << "Дата окончания отпуска" << "Подтверждение";
+    QTableWidgetItem* itemVocation;
+    for (int j = 0 ; j < 4; ++j ) {
+        itemVocation = new QTableWidgetItem(listVocation[j]);
+        tableVocation->setHorizontalHeaderItem(j, itemVocation);
+        itemVocation->setFlags(Qt::ItemIsEditable);
+    }
+    QStringList vocation1, vocation2;
+    vocation1 << "2" << "2023-02-01" << "2023-03-01" << "true";
+    vocation2 << "3" << "2023-03-01" << "2023-03-18" << "true";
+    for(int j=0; j<4; j++){
+        itemVocation = new QTableWidgetItem(vocation1[j]);
+        tableVocation->setItem(0, j, itemVocation);
+    }
+    for(int j=0; j<4; j++){
+        itemVocation = new QTableWidgetItem(vocation2[j]);
+        tableVocation->setItem(1, j, itemVocation);
+    }
+
+    tableVocation->horizontalHeader()->setStretchLastSection(true);
+
+
+    tableFired = new QTableWidget(1,2);
+    QStringList listFired;
+    listFired << "id работника" << "Дата увольнения";
+    QTableWidgetItem* itemFired;
+    for (int j = 0 ; j < 2; ++j ) {
+        itemFired = new QTableWidgetItem(listFired[j]);
+        tableFired->setHorizontalHeaderItem(j, itemFired);
+        itemFired->setFlags(Qt::ItemIsEditable);
+    }
+    QStringList fired1;
+    fired1 << "4" << "2023-04-11";
+    for(int j=0; j<2; j++){
+        itemFired = new QTableWidgetItem(fired1[j]);
+        tableFired->setItem(0, j, itemFired);
+    }
+
+    tableFired->horizontalHeader()->setStretchLastSection(true);
+
+
     mainLayout->addWidget(btnBack, 0, 0, 1, 1);
-    mainLayout->addWidget(nameCheckChangeStatusEmployee, 1, 0, 1, 10, Qt::AlignCenter);
-    mainLayout->addWidget(tableCheckChangeStatusEmployee, 2, 0, 1, 10);
-    mainLayout->addWidget(nameInputCheckChangeStatusEmployee, 3, 0, 1, 10, Qt::AlignCenter);
-    mainLayout->addWidget(inputCheckChangeStatusEmployee, 4, 0, 1, 10);
-    mainLayout->addWidget(btnSendChange, 5, 3, 1, 4);
+    mainLayout->addWidget(nameTableSick, 1, 0, 1, 10, Qt::AlignCenter);
+    mainLayout->addWidget(tableSick, 2, 0, 1, 10);
+    mainLayout->addWidget(nameTableVocation, 3, 0, 1, 10, Qt::AlignCenter);
+    mainLayout->addWidget(tableVocation, 4, 0, 1, 10);
+    mainLayout->addWidget(nameTableFired, 5, 0, 1, 10, Qt::AlignCenter);
+    mainLayout->addWidget(tableFired, 6, 0, 1, 10);
+    mainLayout->addWidget(nameInputCheckChangeStatusEmployee, 7, 0, 1, 10, Qt::AlignCenter);
+    mainLayout->addWidget(inputCheckChangeStatusEmployee, 8, 0, 1, 10);
+    mainLayout->addWidget(btnSendChange, 9, 3, 1, 4);
 }
 
 void Widget::on_btnInputChangeCheckChangeStatusEmployee_clicked(){
-    inpChangesCheckChangeStatusEmployee = inputCheckChangeStatusEmployee->text();
-    QString sendChanges = "";
-    QStringList changes;
-    changes = inpChangesCheckChangeStatusEmployee.split(",");
-    if(changes.length()==0){
-        QMessageBox::information(this, "", "Поле для изменений не заполнено!");
-    }
-    else if(changes.length()==4 || changes.length()==5){
-        QMessageBox::information(this, "", "Данные успешно отправлены!");
-        inputCheckChangeStatusEmployee->clear();
-    }
-    else QMessageBox::information(this, "", "Проверьте ввёденные данные!");
+    QMessageBox::information(this, "", "Данные успешно отправлены!");
 }
 
 Widget::~Widget()
